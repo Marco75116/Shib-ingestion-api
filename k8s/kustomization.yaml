@@ -6,6 +6,7 @@ namespace: bubblemaps-test
 resources:
   - namespace.yaml
   - ../clickhouse
+  - ../api
 
 secretGenerator:
   - name: app-secrets

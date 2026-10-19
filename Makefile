@@ -41,3 +41,12 @@ reset-offsets: ## re-read the topic from the earliest retained offset (detach co
 	  -v $(CURDIR)/clickhouse/tools:/tools:ro python:3.12-slim \
 	  sh -c 'pip install -q confluent-kafka==2.6.1 && python /tools/reset_offsets.py'
 	kubectl -n $(NS) exec clickhouse-0 -- sh -c 'clickhouse-client --password "$$CLICKHOUSE_PASSWORD" -q "ATTACH TABLE shib.kafka_transfers"'
+
+build: ## build the FastAPI image (shared with Docker Desktop Kubernetes)
+	docker build -t shib-api:dev api/
+
+restart-api: ## roll the API pods (pick up a freshly built image)
+	kubectl -n $(NS) rollout restart deployment/api && kubectl -n $(NS) rollout status deployment/api
+
+pf-api: ## port-forward the API to http://localhost:8080 (docs at /docs)
+	kubectl -n $(NS) port-forward svc/api 8080:80

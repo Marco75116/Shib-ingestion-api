@@ -12,6 +12,9 @@ configMapGenerator:
   - name: clickhouse-config
     files:
       - config.d/kafka.xml
+  - name: clickhouse-users
+    files:
+      - users.d/api.xml
 
 generatorOptions:
   disableNameSuffixHash: true

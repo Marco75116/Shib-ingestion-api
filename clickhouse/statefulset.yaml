@@ -35,6 +35,9 @@ spec:
             - name: config
               mountPath: /etc/clickhouse-server/config.d/kafka.xml
               subPath: kafka.xml
+            - name: users
+              mountPath: /etc/clickhouse-server/users.d/api.xml
+              subPath: api.xml
           readinessProbe:
             httpGet:
               path: /ping
@@ -61,6 +64,9 @@ spec:
         - name: config
           configMap:
             name: clickhouse-config
+        - name: users
+          configMap:
+            name: clickhouse-users
   volumeClaimTemplates:
     - metadata:
         name: data
