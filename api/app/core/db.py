@@ -1,3 +1,5 @@
+import logging
+import time
 from datetime import datetime, timezone
 from typing import Any
 
@@ -6,6 +8,9 @@ from clickhouse_connect.driver import httputil
 from clickhouse_connect.driver.client import Client
 
 from .config import settings
+from .constants import STARTUP_ATTEMPTS, STARTUP_RETRY_SECONDS
+
+log = logging.getLogger("uvicorn.error")
 
 
 class Database:
@@ -27,6 +32,21 @@ class Database:
                 pool_mgr=httputil.get_pool_manager(maxsize=settings.pool_size, block=True),
             )
         return self._client
+
+    def connect(self) -> None:
+        """Open the client and prove ClickHouse answers. Raises after STARTUP_ATTEMPTS failures."""
+        target = f"{settings.host}:{settings.port} as {settings.user!r} on db {settings.db!r}"
+        for attempt in range(1, STARTUP_ATTEMPTS + 1):
+            try:
+                self.client.command("SELECT 1")
+                log.info("ClickHouse reachable at %s", target)
+                return
+            except Exception as exc:
+                log.warning("ClickHouse not reachable (%d/%d): %s", attempt, STARTUP_ATTEMPTS, exc)
+                self.close()
+                if attempt == STARTUP_ATTEMPTS:
+                    raise RuntimeError(f"ClickHouse unreachable at {target}") from exc
+                time.sleep(STARTUP_RETRY_SECONDS)
 
     def query(self, sql: str, params: dict[str, Any] | None = None) -> list[dict[str, Any]]:
         rows = self.client.query(sql, parameters=params).named_results()
