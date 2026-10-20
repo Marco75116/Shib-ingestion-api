@@ -42,11 +42,42 @@ def query_wallet_stats(db: Database, wallet: str) -> dict:
             sum(received_volume)      AS received_volume,
             uniqMerge(counterparties) AS counterparties,
             min(first_seen)           AS first_seen,
-            max(last_seen)            AS last_seen
+            max(last_seen)            AS last_seen,
+            nullIf(argMinMerge(first_funder), '') AS first_funder,
+            min(first_received_at)    AS first_received_at
         FROM wallet_stats
         WHERE wallet = {wallet:String}
         """,
         {"wallet": wallet},
+    )
+
+
+def query_wallet_siblings(db: Database, funder: str, exclude: str, limit: int) -> list[dict]:
+    """Wallets whose first SHIB came from `funder`: candidates = funder's recipients, confirmed in wallet_stats."""
+    return db.query(
+        """
+        SELECT
+            wallet,
+            min(first_received_at)    AS first_received_at,
+            sum(received_count)       AS received_count,
+            sum(received_volume)      AS received_volume,
+            uniqMerge(counterparties) AS counterparties
+        FROM wallet_stats
+        WHERE wallet IN
+        (
+            SELECT counterparty
+            FROM wallet_links
+            WHERE wallet = {funder:String}
+            GROUP BY counterparty
+            HAVING sum(sent_count) > 0
+        )
+          AND wallet != {exclude:String}
+        GROUP BY wallet
+        HAVING argMinMerge(first_funder) = {funder:String}
+        ORDER BY first_received_at
+        LIMIT {limit:UInt32}
+        """,
+        {"funder": funder, "exclude": exclude, "limit": min(limit, MAX_ROWS)},
     )
 
 

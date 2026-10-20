@@ -138,9 +138,11 @@ CREATE TABLE IF NOT EXISTS shib.wallet_stats
     sent_volume     SimpleAggregateFunction(sum, Float64),
     received_count  SimpleAggregateFunction(sum, UInt64),
     received_volume SimpleAggregateFunction(sum, Float64),
-    counterparties  AggregateFunction(uniq, String),
-    first_seen      SimpleAggregateFunction(min, DateTime64(3, 'UTC')),
-    last_seen       SimpleAggregateFunction(max, DateTime64(3, 'UTC'))
+    counterparties    AggregateFunction(uniq, String),
+    first_seen        SimpleAggregateFunction(min, DateTime64(3, 'UTC')),
+    last_seen         SimpleAggregateFunction(max, DateTime64(3, 'UTC')),
+    first_funder      AggregateFunction(argMin, String, DateTime64(3, 'UTC')),
+    first_received_at SimpleAggregateFunction(min, Nullable(DateTime64(3, 'UTC')))
 )
 ENGINE = AggregatingMergeTree
 ORDER BY wallet;
@@ -156,7 +158,9 @@ SELECT
     sumIf(amount, direction = 'received') AS received_volume,
     uniqState(counterparty)          AS counterparties,
     min(block_timestamp)             AS first_seen,
-    max(block_timestamp)             AS last_seen
+    max(block_timestamp)             AS last_seen,
+    argMinStateIf(counterparty, block_timestamp, direction = 'received') AS first_funder,
+    minIfOrNull(block_timestamp, direction = 'received')                 AS first_received_at
 FROM shib.transfers_by_wallet
 GROUP BY wallet;
 

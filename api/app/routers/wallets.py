@@ -10,10 +10,11 @@ from ..queries.wallets import (
     query_common_counterparties,
     query_direct_link,
     query_wallet_links,
+    query_wallet_siblings,
     query_wallet_stats,
     query_wallet_transfers,
 )
-from ..schemas.wallets import WalletLinks, WalletPair, WalletStats, WalletTransfer
+from ..schemas.wallets import WalletLinks, WalletPair, WalletSiblings, WalletStats, WalletTransfer
 from .deps import valid_address, valid_other
 
 router = APIRouter(prefix="/wallets", tags=["wallets"])
@@ -75,4 +76,29 @@ def wallet_pair(
         degree=1 if has_direct else (2 if common else None),
         direct=direct if has_direct else None,
         common_counterparties=common,
+    )
+
+
+@router.get("/{address}/siblings", response_model=WalletSiblings, summary="Wallets seeded by the same first funder")
+def wallet_siblings(
+    address: str = Depends(valid_address),
+    limit: int = Query(50, ge=1, le=MAX_ROWS),
+    db: Database = Depends(get_db),
+):
+    stats = query_wallet_stats(db, address)
+    if not stats or stats["sent_count"] + stats["received_count"] == 0:
+        raise HTTPException(status_code=404, detail="wallet has no transfers in the retained window")
+    funder = stats["first_funder"]
+    if funder is None:
+        return WalletSiblings(address=address, first_funder=None, first_received_at=None,
+                              funder_is_hub=False, siblings=[])
+    funder_stats = query_wallet_stats(db, funder)
+    funder_is_hub = funder_stats.get("counterparties", 0) > HUB_COUNTERPARTIES
+    rows = [] if funder_is_hub else query_wallet_siblings(db, funder, address, limit)
+    return WalletSiblings(
+        address=address,
+        first_funder=funder,
+        first_received_at=stats["first_received_at"],
+        funder_is_hub=funder_is_hub,
+        siblings=[{**r, "is_hub": r["counterparties"] > HUB_COUNTERPARTIES} for r in rows],
     )

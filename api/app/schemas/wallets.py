@@ -23,6 +23,8 @@ class WalletStats(BaseModel):
     counterparties: int
     first_seen: datetime
     last_seen: datetime
+    first_funder: str | None = Field(description="first wallet that ever sent SHIB to this address")
+    first_received_at: datetime | None
 
 
 class WalletLink(BaseModel):
@@ -68,3 +70,20 @@ class WalletPair(BaseModel):
     degree: Literal[1, 2] | None = Field(description="1 = direct transfers, 2 = shared counterparty, null = no link found")
     direct: DirectLink | None
     common_counterparties: list[CommonCounterparty]
+
+
+class Sibling(BaseModel):
+    wallet: str
+    first_received_at: datetime
+    received_count: int
+    received_volume: float
+    counterparties: int
+    is_hub: bool
+
+
+class WalletSiblings(BaseModel):
+    address: str
+    first_funder: str | None
+    first_received_at: datetime | None
+    funder_is_hub: bool = Field(description="funder is an exchange-like wallet; siblings are not meaningful")
+    siblings: list[Sibling] = Field(description="other wallets whose first SHIB also came from first_funder")
