@@ -7,7 +7,12 @@
 # Works on any Ubuntu 22.04/24.04 or Debian 12/13 VM (Hetzner, OVH, Scaleway, DigitalOcean, Oracle, ...).
 # Requires: docker (buildx), rsync, ssh access to the VM, k8s/.env filled in.
 #
-# Pangolin (optional): set PANGOLIN_ENDPOINT / NEWT_ID / NEWT_SECRET in k8s/.env
+# TLS (optional): point a DNS A record at the VM, then
+#   API_HOST=api.example.com ACME_EMAIL=you@example.com deploy/vm/deploy.sh <ip>
+# cert-manager requests a Let's Encrypt certificate and HTTP is redirected to HTTPS.
+# Without API_HOST the API stays on plain http://<ip>/.
+#
+# Pangolin (alternative to TLS above): set PANGOLIN_ENDPOINT / NEWT_ID / NEWT_SECRET in k8s/.env
 # (from Pangolin -> Sites -> Add Site) and the deploy runs the Newt connector in the cluster. Then
 # add a Resource in Pangolin targeting http api.bubblemaps-test.svc.cluster.local:80.
 set -euo pipefail
@@ -20,6 +25,9 @@ NS=bubblemaps-test
 # Each deployment must consume with its own Kafka group, or Confluent splits the partitions
 # between it and your laptop cluster. Base name comes from the schema; we suffix it on the VM copy.
 KAFKA_GROUP_SUFFIX="${KAFKA_GROUP_SUFFIX:-vm}"
+API_HOST="${API_HOST:-}"
+ACME_EMAIL="${ACME_EMAIL:-}"
+if [[ -n "${API_HOST}" && -z "${ACME_EMAIL}" ]]; then echo "ACME_EMAIL is required with API_HOST"; exit 1; fi
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 
 [[ -f "${ROOT}/k8s/.env" ]] || { echo "k8s/.env missing (copy k8s/.env.example)"; exit 1; }
@@ -71,8 +79,15 @@ if grep -qE '^NEWT_ID=.+' k8s/.env && ! grep -qE '^NEWT_ID=changeme' k8s/.env; t
   sudo k3s kubectl -n ${NS} rollout status deployment/newt --timeout=120s
   sudo k3s kubectl -n ${NS} logs deployment/newt --tail=5
 fi
+if [[ -n "${API_HOST}" ]]; then
+  sed -i "s/__API_HOST__/${API_HOST}/g; s/__ACME_EMAIL__/${ACME_EMAIL}/g" k8s/tls/*.yaml
+  sudo k3s kubectl apply -f k8s/tls/
+  echo "waiting for certificate (Let's Encrypt HTTP-01 on port 80)..."
+  sudo k3s kubectl -n ${NS} wait --for=condition=Ready certificate/api-tls --timeout=180s || \
+    sudo k3s kubectl -n ${NS} describe certificate api-tls | tail -15
+fi
 sudo k3s kubectl -n ${NS} get pods,svc,ingress,pvc
 REMOTE
 
 echo
-echo "==> API: http://${VM}/docs"
+if [[ -n "${API_HOST}" ]]; then echo "==> API: https://${API_HOST}/docs"; else echo "==> API: http://${VM}/docs"; fi

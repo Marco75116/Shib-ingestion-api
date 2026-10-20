@@ -2,6 +2,7 @@
 # Runs ON the VM (Ubuntu 22.04/24.04 or Debian 12/13, x86_64 or aarch64). Idempotent.
 # - installs a host firewall (nftables): only PUBLIC_PORTS inbound, cluster traffic allowed
 # - installs k3s (with its bundled Traefik ingress, which owns ports 80/443 on the node)
+# - installs cert-manager; TLS is enabled per deploy with API_HOST + ACME_EMAIL (see deploy.sh)
 set -euo pipefail
 
 # comma-separated tcp ports open to the internet. deploy.sh passes "22" when Newt/Pangolin is used.
@@ -49,6 +50,14 @@ for _ in $(seq 1 60); do
   sleep 2
 done
 sudo k3s kubectl get nodes
+
+CERT_MANAGER_VERSION="${CERT_MANAGER_VERSION:-v1.21.2}"
+if ! sudo k3s kubectl -n cert-manager get deploy cert-manager >/dev/null 2>&1; then
+  echo "==> installing cert-manager ${CERT_MANAGER_VERSION} (Let's Encrypt certificates for the Ingress)"
+  sudo k3s kubectl apply -f "https://github.com/cert-manager/cert-manager/releases/download/${CERT_MANAGER_VERSION}/cert-manager.yaml" >/dev/null
+fi
+sudo k3s kubectl -n cert-manager rollout status deploy/cert-manager deploy/cert-manager-webhook deploy/cert-manager-cainjector --timeout=180s >/dev/null
+echo "==> cert-manager ready"
 
 # kubectl convenience for the login user
 if ! grep -q KUBECONFIG ~/.bashrc 2>/dev/null; then

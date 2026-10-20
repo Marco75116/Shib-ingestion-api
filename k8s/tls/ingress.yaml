@@ -1,0 +1,37 @@
+# Replaces the base `api` Ingress with a host + TLS when API_HOST is set.
+# __API_HOST__ is substituted by deploy/vm/deploy.sh. Applied after k8s/ so it wins.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: api
+  namespace: bubblemaps-test
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt
+    traefik.ingress.kubernetes.io/router.entrypoints: web,websecure
+    traefik.ingress.kubernetes.io/router.middlewares: bubblemaps-test-redirect-https@kubernetescrd
+spec:
+  ingressClassName: traefik
+  tls:
+    - hosts: [__API_HOST__]
+      secretName: api-tls
+  rules:
+    - host: __API_HOST__
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: api
+                port:
+                  name: http
+---
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: redirect-https
+  namespace: bubblemaps-test
+spec:
+  redirectScheme:
+    scheme: https
+    permanent: true
