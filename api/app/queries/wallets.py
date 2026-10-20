@@ -30,3 +30,21 @@ def query_wallet_transfers(
     seen: set[tuple[str, str]] = set()
     unique = [r for r in rows if (key := (r["unique_id"], r["direction"])) not in seen and not seen.add(key)]
     return unique[:limit]
+
+
+def query_wallet_stats(db: Database, wallet: str) -> dict:
+    return db.one(
+        """
+        SELECT
+            sum(sent_count)           AS sent_count,
+            sum(sent_volume)          AS sent_volume,
+            sum(received_count)       AS received_count,
+            sum(received_volume)      AS received_volume,
+            uniqMerge(counterparties) AS counterparties,
+            min(first_seen)           AS first_seen,
+            max(last_seen)            AS last_seen
+        FROM wallet_stats
+        WHERE wallet = {wallet:String}
+        """,
+        {"wallet": wallet},
+    )

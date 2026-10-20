@@ -11,3 +11,15 @@ class WalletTransfer(BaseModel):
     amount: float
     tx_hash: str
     unique_id: str
+
+
+class WalletStats(BaseModel):
+    address: str
+    sent_count: int
+    sent_volume: float
+    received_count: int
+    received_volume: float
+    net_flow: float
+    counterparties: int
+    first_seen: datetime
+    last_seen: datetime

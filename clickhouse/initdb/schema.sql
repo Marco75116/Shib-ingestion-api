@@ -130,3 +130,32 @@ TO shib.transfers_by_wallet
 AS
 SELECT to_address AS wallet, 'in' AS direction, block_timestamp, unique_id, tx_hash, from_address AS counterparty, amount
 FROM shib.transfers;
+
+CREATE TABLE IF NOT EXISTS shib.wallet_stats
+(
+    wallet          String,
+    sent_count      SimpleAggregateFunction(sum, UInt64),
+    sent_volume     SimpleAggregateFunction(sum, Float64),
+    received_count  SimpleAggregateFunction(sum, UInt64),
+    received_volume SimpleAggregateFunction(sum, Float64),
+    counterparties  AggregateFunction(uniq, String),
+    first_seen      SimpleAggregateFunction(min, DateTime64(3, 'UTC')),
+    last_seen       SimpleAggregateFunction(max, DateTime64(3, 'UTC'))
+)
+ENGINE = AggregatingMergeTree
+ORDER BY wallet;
+
+CREATE MATERIALIZED VIEW IF NOT EXISTS shib.mv_wallet_stats
+TO shib.wallet_stats
+AS
+SELECT
+    wallet,
+    countIf(direction = 'out')       AS sent_count,
+    sumIf(amount, direction = 'out') AS sent_volume,
+    countIf(direction = 'in')        AS received_count,
+    sumIf(amount, direction = 'in')  AS received_volume,
+    uniqState(counterparty)          AS counterparties,
+    min(block_timestamp)             AS first_seen,
+    max(block_timestamp)             AS last_seen
+FROM shib.transfers_by_wallet
+GROUP BY wallet;
