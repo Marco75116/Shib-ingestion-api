@@ -42,6 +42,11 @@ reset-offsets: ## re-read the topic from the earliest retained offset (detach co
 	  sh -c 'pip install -q confluent-kafka==2.6.1 && python /tools/reset_offsets.py'
 	kubectl -n $(NS) exec clickhouse-0 -- sh -c 'clickhouse-client --password "$$CLICKHOUSE_PASSWORD" -q "ATTACH TABLE shib.kafka_transfers"'
 
+kafka-read: ## print raw topic messages by partition:offset, e.g. make kafka-read AT="5:10295 0:78351"
+	docker run --rm --env-file k8s/.env -e BROKER=$(KAFKA_BROKER) -e TOPIC=$(KAFKA_TOPIC) \
+	  -v $(CURDIR)/clickhouse/tools:/tools:ro python:3.12-slim \
+	  sh -c 'pip install -q confluent-kafka==2.6.1 2>/dev/null && python /tools/read_offsets.py $(AT)'
+
 build: ## build the FastAPI image (shared with Docker Desktop Kubernetes)
 	docker build -t shib-api:dev api/
 
