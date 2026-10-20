@@ -28,6 +28,21 @@ CronJob transfer-count-alert (hourly, ClickHouse vs SQD portal)
 Everything runs on one Debian VM with k3s (`make vm-deploy VM=<ip>`). The host firewall allows only
 ssh inbound; the API and the Headlamp UI are published through a Pangolin tunnel.
 
+## Infrastructure
+
+The whole stack runs on one netcup VPS (2 vCore, 4 GB, Debian 13) with a single-node k3s cluster,
+deployed with `make vm-deploy VM=<ip>` from the working tree. The host firewall allows only ssh
+inbound; the API and the Headlamp UI are published through a Pangolin tunnel (the `newt` pod), so
+no service port is open on the VM.
+
+Pods in the `bubblemaps-test` namespace, seen from Headlamp:
+
+![Pods in Headlamp](docs/headlamp-pods.png)
+
+`clickhouse-0` (1 GiB in use of a 2.5 GiB limit), two `api` pods, `newt` for the tunnel, and the
+hourly `transfer-count-alert` jobs. The one in Error is the reorg alert described below; the runs
+before and after it completed.
+
 ## Limits at larger scale
 
 Scale comes with more data and more load. The first step is to monitor every service, find the
