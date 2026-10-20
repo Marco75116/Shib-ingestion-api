@@ -63,3 +63,22 @@ alert-check: ## run the SQD vs ClickHouse transfer-count check now and tail its 
 alerts: ## list transfer-count-alert jobs and any ALERT lines in their logs
 	kubectl -n $(NS) get cronjob,jobs -l app=transfer-count-alert
 	-kubectl -n $(NS) logs -l app=transfer-count-alert --tail=-1 --prefix | grep ALERT
+
+# ---- single Ubuntu/Debian VM with k3s (see deploy/vm/deploy.sh) ----
+vm-deploy: ## deploy to the VM: make vm-deploy VM=<ip> [SSH_USER=ubuntu] [API_HOST=api.example.com ACME_EMAIL=you@example.com]
+	API_HOST="$(API_HOST)" ACME_EMAIL="$(ACME_EMAIL)" deploy/vm/deploy.sh $(VM) $(or $(SSH_USER),root)
+
+vm-ssh: ## ssh into the VM: make vm-ssh VM=<ip>
+	ssh $(or $(SSH_USER),root)@$(VM)
+
+vm-status: ## pods, services, pvc on the VM: make vm-status VM=<ip>
+	ssh $(or $(SSH_USER),root)@$(VM) 'sudo k3s kubectl -n $(NS) get pods,svc,pvc'
+
+vm-logs: ## tail a pod on the VM: make vm-logs VM=<ip> POD=clickhouse-0
+	ssh $(or $(SSH_USER),root)@$(VM) 'sudo k3s kubectl -n $(NS) logs -f $(POD)'
+
+vm-delete: ## remove the app from the VM (keeps k3s and the data PVC): make vm-delete VM=<ip>
+	ssh $(or $(SSH_USER),root)@$(VM) 'cd ~/bubblemaps-test && sudo k3s kubectl delete -k k8s/ --ignore-not-found'
+
+vm-wipe: ## uninstall k3s and all data on the VM, leaving a blank server: make vm-wipe VM=<ip>
+	ssh $(or $(SSH_USER),root)@$(VM) 'sudo /usr/local/bin/k3s-uninstall.sh && rm -rf ~/bubblemaps-test /tmp/shib-api.tar'
