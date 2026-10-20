@@ -33,9 +33,7 @@ CREATE TABLE IF NOT EXISTS shib.transfers
     inserted_at     DateTime64(3, 'UTC'),
     ingested_at     DateTime64(3, 'UTC') DEFAULT now64(3),
     kafka_partition UInt16,
-    kafka_offset    UInt64,
-    INDEX idx_from from_address TYPE bloom_filter GRANULARITY 4,
-    INDEX idx_to   to_address   TYPE bloom_filter GRANULARITY 4
+    kafka_offset    UInt64
 )
 ENGINE = ReplacingMergeTree
 PARTITION BY toYYYYMM(block_timestamp)
@@ -106,3 +104,29 @@ SELECT
     uniqState(to_address)          AS receivers
 FROM shib.transfers
 GROUP BY hour;
+
+CREATE TABLE IF NOT EXISTS shib.transfers_by_wallet
+(
+    wallet          String,
+    direction       Enum8('out' = 1, 'in' = 2),
+    block_timestamp DateTime64(3, 'UTC'),
+    unique_id       String,
+    tx_hash         String,
+    counterparty    String,
+    amount          Float64
+)
+ENGINE = ReplacingMergeTree
+PARTITION BY toYYYYMM(block_timestamp)
+ORDER BY (wallet, block_timestamp, unique_id, direction);
+
+CREATE MATERIALIZED VIEW IF NOT EXISTS shib.mv_transfers_by_wallet_out
+TO shib.transfers_by_wallet
+AS
+SELECT from_address AS wallet, 'out' AS direction, block_timestamp, unique_id, tx_hash, to_address AS counterparty, amount
+FROM shib.transfers;
+
+CREATE MATERIALIZED VIEW IF NOT EXISTS shib.mv_transfers_by_wallet_in
+TO shib.transfers_by_wallet
+AS
+SELECT to_address AS wallet, 'in' AS direction, block_timestamp, unique_id, tx_hash, from_address AS counterparty, amount
+FROM shib.transfers;
