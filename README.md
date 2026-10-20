@@ -43,6 +43,34 @@ Pods in the `bubblemaps-test` namespace, seen from Headlamp:
 hourly `transfer-count-alert` jobs. The one in Error is the reorg alert described below; the runs
 before and after it completed.
 
+## API
+
+Public at https://shib-api.marco33.fr, interactive docs at https://shib-api.marco33.fr/docs.
+
+```sh
+# latest transfers
+curl -s "https://shib-api.marco33.fr/transfers/latest?limit=5"
+
+# transfers per hour over the last day, per day over the last week
+curl -s "https://shib-api.marco33.fr/stats/timeseries?range=24h"
+curl -s "https://shib-api.marco33.fr/stats/timeseries?range=7d"
+
+# who moved this exact amount in the last 7 days
+curl -s "https://shib-api.marco33.fr/transfers/by-amount?amount=1466985.391292666&range=7d"
+
+# one wallet: stats, transfers, direct counterparties
+curl -s "https://shib-api.marco33.fr/wallets/0xc80afd311c9626528de66d86814770361fe92416/stats"
+curl -s "https://shib-api.marco33.fr/wallets/0xc80afd311c9626528de66d86814770361fe92416/transfers?limit=10"
+curl -s "https://shib-api.marco33.fr/wallets/0xc80afd311c9626528de66d86814770361fe92416/links?limit=10"
+
+# link between two wallets: hops=1 direct, hops=2 through shared counterparties, null if none
+curl -s "https://shib-api.marco33.fr/wallets/0xc80afd311c9626528de66d86814770361fe92416/links/0x0d0707963952f2fba59dd06f2b425ace40b492fe"
+
+# wallets funded by the same first sender, and wallets with a similar address book
+curl -s "https://shib-api.marco33.fr/wallets/0xc80afd311c9626528de66d86814770361fe92416/siblings"
+curl -s "https://shib-api.marco33.fr/wallets/0xc80afd311c9626528de66d86814770361fe92416/similar?min_shared=2"
+```
+
 ## Limits at larger scale
 
 Scale comes with more data and more load. The first step is to monitor every service, find the
