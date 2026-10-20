@@ -77,7 +77,7 @@ class Similarity(BaseModel):
 class WalletPair(BaseModel):
     address: str
     other: str
-    degree: Literal[1, 2] | None = Field(description="1 = direct transfers, 2 = shared counterparty, null = no link found")
+    hops: Literal[1, 2] | None = Field(description="1 = direct transfers, 2 = linked through a shared counterparty, null = no link found")
     direct: DirectLink | None
     common_counterparties: list[CommonCounterparty]
     similarity: Similarity

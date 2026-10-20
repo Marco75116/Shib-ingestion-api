@@ -77,7 +77,7 @@ def wallet_pair(
     return WalletPair(
         address=address,
         other=other,
-        degree=1 if has_direct else (2 if common else None),
+        hops=1 if has_direct else (2 if common else None),
         direct=direct if has_direct else None,
         common_counterparties=common,
         similarity=query_pair_similarity(db, address, other),
