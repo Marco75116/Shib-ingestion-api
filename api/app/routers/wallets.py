@@ -10,12 +10,14 @@ from ..queries.wallets import (
     query_common_counterparties,
     query_direct_link,
     query_funder_stats,
+    query_pair_similarity,
+    query_similar_wallets,
     query_wallet_links,
     query_wallet_siblings,
     query_wallet_stats,
     query_wallet_transfers,
 )
-from ..schemas.wallets import WalletLinks, WalletPair, WalletSiblings, WalletStats, WalletTransfer
+from ..schemas.wallets import SimilarWallets, WalletLinks, WalletPair, WalletSiblings, WalletStats, WalletTransfer
 from .deps import valid_address, valid_other
 
 router = APIRouter(prefix="/wallets", tags=["wallets"])
@@ -78,6 +80,7 @@ def wallet_pair(
         degree=1 if has_direct else (2 if common else None),
         direct=direct if has_direct else None,
         common_counterparties=common,
+        similarity=query_pair_similarity(db, address, other),
     )
 
 
@@ -105,3 +108,13 @@ def wallet_siblings(
         siblings=[{**r, "is_hub": r["counterparties"] > HUB_COUNTERPARTIES} for r in rows],
     )
 
+
+
+@router.get("/{address}/similar", response_model=SimilarWallets, summary="Wallets with a similar address book")
+def similar_wallets(
+    address: str = Depends(valid_address),
+    min_shared: int = Query(2, ge=1, le=100, description="minimum counterparties in common"),
+    limit: int = Query(10, ge=1, le=100),
+    db: Database = Depends(get_db),
+):
+    return SimilarWallets(address=address, min_shared=min_shared, **query_similar_wallets(db, address, min_shared, limit))

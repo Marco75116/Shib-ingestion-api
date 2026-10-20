@@ -65,12 +65,22 @@ class CommonCounterparty(BaseModel):
     is_hub: bool
 
 
+class Similarity(BaseModel):
+    shared_counterparties: int = Field(description="wallets both deal with, hubs excluded")
+    degree_address: int = Field(description="distinct counterparties of address, hubs excluded")
+    degree_other: int
+    union: int
+    jaccard: float = Field(description="shared / union; punishes asymmetric pairs")
+    overlap: float = Field(description="shared / smaller degree; 1.0 = one address book contains the other")
+
+
 class WalletPair(BaseModel):
     address: str
     other: str
     degree: Literal[1, 2] | None = Field(description="1 = direct transfers, 2 = shared counterparty, null = no link found")
     direct: DirectLink | None
     common_counterparties: list[CommonCounterparty]
+    similarity: Similarity
 
 
 class Sibling(BaseModel):
@@ -89,3 +99,19 @@ class WalletSiblings(BaseModel):
     funder_is_hub: bool = Field(description="funder is an exchange-like wallet; siblings are not meaningful")
     seeded_wallets: int = Field(description="total wallets seeded by first_funder, including this one")
     siblings: list[Sibling] = Field(description="other wallets whose first SHIB also came from first_funder")
+
+
+class SimilarWallet(BaseModel):
+    wallet: str
+    shared_counterparties: int
+    degree: int = Field(description="all counterparties of the candidate, hubs included")
+    overlap: float
+    jaccard: float
+    is_direct_link: bool = Field(description="the candidate also transacted with address directly")
+
+
+class SimilarWallets(BaseModel):
+    address: str
+    degree: int = Field(description="address's non-hub counterparties that were expanded")
+    min_shared: int
+    results: list[SimilarWallet]

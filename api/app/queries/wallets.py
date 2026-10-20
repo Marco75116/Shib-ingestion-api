@@ -1,7 +1,7 @@
 from datetime import datetime
 from typing import Literal
 
-from ..core.constants import MAX_ROWS
+from ..core.constants import HUB_COUNTERPARTIES, MAX_ROWS, SIMILAR_MAX_NEIGHBORS
 from ..core.db import Database
 
 Direction = Literal["all", "sent", "received"]
@@ -182,3 +182,119 @@ def query_common_counterparties(db: Database, address: str, other: str, limit: i
         """,
         {"address": address, "other": other, "limit": min(limit, MAX_ROWS)},
     )
+
+
+def query_pair_similarity(db: Database, address: str, other: str) -> dict:
+    """Shared address book of two wallets: counts with hubs removed, scores computed in Python."""
+    row = db.one(
+        """
+        WITH
+            la AS (SELECT counterparty FROM wallet_links WHERE wallet = {address:String} GROUP BY counterparty),
+            lb AS (SELECT counterparty FROM wallet_links WHERE wallet = {other:String} GROUP BY counterparty),
+            hubs AS
+            (
+                SELECT wallet FROM wallet_stats
+                WHERE wallet IN (SELECT counterparty FROM la UNION ALL SELECT counterparty FROM lb)
+                GROUP BY wallet
+                HAVING uniqMerge(counterparties) > {hub:UInt32}
+            ),
+            na AS (SELECT counterparty FROM la WHERE counterparty NOT IN (SELECT wallet FROM hubs)
+                   AND counterparty NOT IN ({address:String}, {other:String})),
+            nb AS (SELECT counterparty FROM lb WHERE counterparty NOT IN (SELECT wallet FROM hubs)
+                   AND counterparty NOT IN ({address:String}, {other:String}))
+        SELECT
+            (SELECT count() FROM na) AS degree_address,
+            (SELECT count() FROM nb) AS degree_other,
+            (SELECT count() FROM na WHERE counterparty IN (SELECT counterparty FROM nb)) AS shared_counterparties
+        """,
+        {"address": address, "other": other, "hub": HUB_COUNTERPARTIES},
+    )
+    shared, da, dob = row["shared_counterparties"], row["degree_address"], row["degree_other"]
+    union = da + dob - shared
+    return {
+        **row,
+        "union": union,
+        "jaccard": round(shared / union, 4) if union else 0.0,
+        "overlap": round(shared / min(da, dob), 4) if min(da, dob) else 0.0,
+    }
+
+
+def query_similar_wallets(db: Database, address: str, min_shared: int, limit: int) -> dict:
+    """Two-hop neighbours ranked by how much of address's address book they share. Hubs excluded at both hops."""
+    rows = db.query(
+        """
+        WITH
+            mine AS
+            (
+                SELECT counterparty, sum(sent_volume) + sum(received_volume) AS volume
+                FROM wallet_links WHERE wallet = {address:String} GROUP BY counterparty
+            ),
+            hubs AS
+            (
+                SELECT wallet FROM wallet_stats
+                WHERE wallet IN (SELECT counterparty FROM mine)
+                GROUP BY wallet HAVING uniqMerge(counterparties) > {hub:UInt32}
+            ),
+            neighbors AS
+            (
+                SELECT counterparty FROM mine
+                WHERE counterparty NOT IN (SELECT wallet FROM hubs) AND counterparty != {address:String}
+                ORDER BY volume DESC
+                LIMIT {max_neighbors:UInt32}
+            ),
+            candidates AS
+            (
+                SELECT counterparty AS wallet, uniq(neighbor) AS shared_counterparties
+                FROM
+                (
+                    SELECT wallet AS neighbor, counterparty
+                    FROM wallet_links
+                    WHERE wallet IN (SELECT counterparty FROM neighbors)
+                    GROUP BY neighbor, counterparty
+                )
+                WHERE counterparty != {address:String}
+                GROUP BY counterparty
+                HAVING shared_counterparties >= {min_shared:UInt32}
+            )
+        SELECT
+            c.wallet                                      AS wallet,
+            c.shared_counterparties                       AS shared_counterparties,
+            ifNull(s.degree, 0)                           AS degree,
+            c.wallet IN (SELECT counterparty FROM mine)   AS is_direct_link,
+            (SELECT count() FROM neighbors)               AS degree_address
+        FROM candidates AS c
+        LEFT JOIN
+        (
+            SELECT wallet, uniqMerge(counterparties) AS degree
+            FROM wallet_stats
+            WHERE wallet IN (SELECT wallet FROM candidates)
+            GROUP BY wallet
+        ) AS s ON s.wallet = c.wallet
+        WHERE degree <= {hub:UInt32}
+        ORDER BY shared_counterparties / greatest(least(degree_address, degree), 1) DESC, shared_counterparties DESC
+        LIMIT {limit:UInt32}
+        """,
+        {
+            "address": address,
+            "hub": HUB_COUNTERPARTIES,
+            "max_neighbors": SIMILAR_MAX_NEIGHBORS,
+            "min_shared": min_shared,
+            "limit": min(limit, MAX_ROWS),
+        },
+    )
+    degree = rows[0]["degree_address"] if rows else 0
+    results = []
+    for r in rows:
+        shared, d = r["shared_counterparties"], r["degree"]
+        union = degree + d - shared
+        results.append(
+            {
+                "wallet": r["wallet"],
+                "shared_counterparties": shared,
+                "degree": d,
+                "overlap": round(shared / min(degree, d), 4) if min(degree, d) else 0.0,
+                "jaccard": round(shared / union, 4) if union else 0.0,
+                "is_direct_link": bool(r["is_direct_link"]),
+            }
+        )
+    return {"degree": degree, "results": results}
