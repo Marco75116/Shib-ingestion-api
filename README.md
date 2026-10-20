@@ -1,4 +1,4 @@
-# bubblemaps-test
+# Shib-ingestion-api
 
 SHIB transfer pipeline: Confluent Kafka → ClickHouse → FastAPI, deployed on a single k3s VM.
 
