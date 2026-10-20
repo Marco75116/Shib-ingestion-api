@@ -1,0 +1,17 @@
+# secrets / local config
+.env
+*.env
+!.env.example
+.context/
+
+# python
+__pycache__/
+*.pyc
+.venv/
+.pytest_cache/
+.ruff_cache/
+
+# misc
+.DS_Store
+*.log
+kubeconfig*

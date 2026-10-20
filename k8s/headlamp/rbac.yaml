@@ -1,0 +1,24 @@
+# Headlamp itself runs with a minimal account; users log in with a token.
+# headlamp-admin is the account whose token you paste into the UI (make vm-headlamp-token).
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: headlamp
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: headlamp-admin
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: headlamp-admin
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: cluster-admin
+subjects:
+  - kind: ServiceAccount
+    name: headlamp-admin
+    namespace: headlamp

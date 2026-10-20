@@ -1,0 +1,52 @@
+# Kubernetes web UI (pods, logs, shell, cron job history). Published through Pangolin as a
+# Protected resource targeting http headlamp.headlamp.svc.cluster.local:80. Not exposed on the VM.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: headlamp
+  labels:
+    app: headlamp
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: headlamp
+  template:
+    metadata:
+      labels:
+        app: headlamp
+    spec:
+      serviceAccountName: headlamp
+      containers:
+        - name: headlamp
+          image: ghcr.io/headlamp-k8s/headlamp:v0.46.0
+          args: ["-in-cluster", "-plugins-dir=/headlamp/plugins"]
+          ports:
+            - name: http
+              containerPort: 4466
+          readinessProbe:
+            httpGet:
+              path: /
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          resources:
+            requests:
+              cpu: 20m
+              memory: 64Mi
+            limits:
+              cpu: 500m
+              memory: 256Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: headlamp
+spec:
+  type: ClusterIP
+  selector:
+    app: headlamp
+  ports:
+    - name: http
+      port: 80
+      targetPort: http

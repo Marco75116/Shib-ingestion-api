@@ -1,0 +1,20 @@
+<clickhouse>
+    <profiles>
+        <api>
+            <readonly>2</readonly>
+            <max_execution_time>10</max_execution_time>
+            <max_result_rows>10000</max_result_rows>
+            <max_memory_usage>1000000000</max_memory_usage>
+        </api>
+    </profiles>
+    <users>
+        <api>
+            <password from_env="CLICKHOUSE_API_PASSWORD"/>
+            <profile>api</profile>
+            <quota>default</quota>
+            <networks>
+                <ip>::/0</ip>
+            </networks>
+        </api>
+    </users>
+</clickhouse>
