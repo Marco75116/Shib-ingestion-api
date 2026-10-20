@@ -50,7 +50,7 @@ def wallet_stats(address: str = Depends(valid_address), db: Database = Depends(g
 @router.get("/{address}/links", response_model=WalletLinks, summary="Direct counterparties of a wallet")
 def wallet_links(
     address: str = Depends(valid_address),
-    limit: int = Query(20, ge=1, le=200),
+    limit: int = Query(20, ge=1, le=200, description="max links returned"),
     order: LinkOrder = "volume",
     db: Database = Depends(get_db),
 ):
@@ -65,7 +65,7 @@ def wallet_links(
 def wallet_pair(
     address: str = Depends(valid_address),
     other: str = Depends(valid_other),
-    limit: int = Query(20, ge=1, le=200),
+    limit: int = Query(20, ge=1, le=200, description="max common_counterparties returned, strongest by volume first"),
     db: Database = Depends(get_db),
 ):
     direct = query_direct_link(db, address, other)

@@ -14,7 +14,7 @@ class Transfer(BaseModel):
 class AmountTransfers(BaseModel):
     amount: float
     tolerance: float
-    hours: int
+    range: str = Field(description="window searched, e.g. 7d")
     frequency: int = Field(description="transfers carrying this amount in the window; rare amounts are signatures")
     senders: int
     receivers: int
