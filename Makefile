@@ -53,3 +53,13 @@ pf-api: ## port-forward the API to http://localhost:8080 (docs at /docs)
 
 refresh-views: ## force the scheduled (refreshable) views to recompute now
 	kubectl -n $(NS) exec clickhouse-0 -- sh -c 'clickhouse-client --password "$$CLICKHOUSE_PASSWORD" --multiquery -q "SYSTEM REFRESH VIEW shib.mv_funder_wallets; SYSTEM WAIT VIEW shib.mv_funder_wallets; SYSTEM REFRESH VIEW shib.mv_funder_stats; SYSTEM WAIT VIEW shib.mv_funder_stats; SELECT view, status, last_success_time, next_refresh_time, exception FROM system.view_refreshes FORMAT PrettyCompact"'
+
+alert-check: ## run the SQD vs ClickHouse transfer-count check now and tail its log
+	@name=alert-$$(date +%s); \
+	kubectl -n $(NS) create job --from=cronjob/transfer-count-alert $$name && \
+	kubectl -n $(NS) wait --for=condition=ready pod -l job-name=$$name --timeout=60s >/dev/null 2>&1; \
+	kubectl -n $(NS) logs -f job/$$name
+
+alerts: ## list transfer-count-alert jobs and any ALERT lines in their logs
+	kubectl -n $(NS) get cronjob,jobs -l app=transfer-count-alert
+	-kubectl -n $(NS) logs -l app=transfer-count-alert --tail=-1 --prefix | grep ALERT

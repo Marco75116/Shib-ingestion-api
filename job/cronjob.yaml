@@ -1,0 +1,52 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: transfer-count-alert
+  labels:
+    app: transfer-count-alert
+spec:
+  schedule: "20 * * * *"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 5
+  jobTemplate:
+    metadata:
+      labels:
+        app: transfer-count-alert
+    spec:
+      backoffLimit: 0
+      activeDeadlineSeconds: 300
+      template:
+        metadata:
+          labels:
+            app: transfer-count-alert
+        spec:
+          restartPolicy: Never
+          containers:
+            - name: check
+              image: python:3.12-slim
+              command: ["python", "/scripts/check.py"]
+              env:
+                - name: CLICKHOUSE_PASSWORD
+                  valueFrom:
+                    secretKeyRef:
+                      name: app-secrets
+                      key: CLICKHOUSE_API_PASSWORD
+                - name: SQD_PORTAL_URL
+                  value: https://portal.sqd.dev/datasets/ethereum-mainnet
+                - name: HOURS_AGO
+                  value: "1"
+              volumeMounts:
+                - name: scripts
+                  mountPath: /scripts
+              resources:
+                requests:
+                  cpu: 10m
+                  memory: 32Mi
+                limits:
+                  cpu: 100m
+                  memory: 64Mi
+          volumes:
+            - name: scripts
+              configMap:
+                name: transfer-count-alert
