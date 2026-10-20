@@ -3,7 +3,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 
 from .core.db import database
-from .routers import health, transfers
+from .routers import health, stats, transfers
 
 
 @asynccontextmanager
@@ -16,3 +16,4 @@ async def lifespan(app: FastAPI):
 app = FastAPI(title="SHIB transfers API", version="0.1.0", lifespan=lifespan)
 app.include_router(health.router)
 app.include_router(transfers.router)
+app.include_router(stats.router)

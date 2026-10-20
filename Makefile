@@ -26,8 +26,8 @@ logs: ## tail logs of a pod: make logs POD=clickhouse-0
 ch: ## open a clickhouse-client shell inside the pod
 	kubectl -n $(NS) exec -it clickhouse-0 -- sh -c 'clickhouse-client --password "$$CLICKHOUSE_PASSWORD"'
 
-schema: ## re-apply clickhouse/initdb/*.sql (idempotent) without restarting the pod
-	kubectl -n $(NS) exec clickhouse-0 -- sh -c 'for f in /docker-entrypoint-initdb.d/*.sql; do echo "== $$f"; clickhouse-client --password "$$CLICKHOUSE_PASSWORD" --multiquery < "$$f"; done'
+schema: ## apply clickhouse/initdb/schema.sql to the running pod (idempotent, no restart)
+	kubectl -n $(NS) exec -i clickhouse-0 -- sh -c 'clickhouse-client --password "$$CLICKHOUSE_PASSWORD" --multiquery' < clickhouse/initdb/schema.sql
 
 restart-ch: ## restart clickhouse (re-runs initdb scripts, keeps data)
 	kubectl -n $(NS) rollout restart statefulset/clickhouse && kubectl -n $(NS) rollout status statefulset/clickhouse

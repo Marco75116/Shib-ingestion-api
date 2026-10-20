@@ -81,3 +81,28 @@ SELECT
     _error        AS error
 FROM shib.kafka_transfers
 WHERE _error != '';
+
+CREATE TABLE IF NOT EXISTS shib.transfers_hourly
+(
+    hour       DateTime('UTC'),
+    transfers  SimpleAggregateFunction(sum, UInt64),
+    volume     SimpleAggregateFunction(sum, Float64),
+    max_amount SimpleAggregateFunction(max, Float64),
+    senders    AggregateFunction(uniq, String),
+    receivers  AggregateFunction(uniq, String)
+)
+ENGINE = AggregatingMergeTree
+ORDER BY hour;
+
+CREATE MATERIALIZED VIEW IF NOT EXISTS shib.mv_transfers_hourly
+TO shib.transfers_hourly
+AS
+SELECT
+    toStartOfHour(block_timestamp) AS hour,
+    count()                        AS transfers,
+    sum(amount)                    AS volume,
+    max(amount)                    AS max_amount,
+    uniqState(from_address)        AS senders,
+    uniqState(to_address)          AS receivers
+FROM shib.transfers
+GROUP BY hour;
