@@ -15,7 +15,7 @@ spec:
     spec:
       containers:
         - name: clickhouse
-          image: clickhouse/clickhouse-server:25.3
+          image: clickhouse/clickhouse-server:25.3.14.14
           ports:
             - name: http
               containerPort: 8123
@@ -35,6 +35,9 @@ spec:
             - name: config
               mountPath: /etc/clickhouse-server/config.d/kafka.xml
               subPath: kafka.xml
+            - name: config
+              mountPath: /etc/clickhouse-server/config.d/memory.xml
+              subPath: memory.xml
             - name: users
               mountPath: /etc/clickhouse-server/users.d/api.xml
               subPath: api.xml
@@ -56,7 +59,7 @@ spec:
               memory: 1Gi
             limits:
               cpu: "2"
-              memory: 3Gi
+              memory: 2560Mi
       volumes:
         - name: initdb
           configMap:

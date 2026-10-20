@@ -1,0 +1,9 @@
+<clickhouse>
+    <!-- Sized for a small container (2.5 GiB limit). ClickHouse reads the cgroup limit as "RAM";
+         keep the server well under it so the kubelet never OOM-kills the pod. -->
+    <max_server_memory_usage_to_ram_ratio>0.8</max_server_memory_usage_to_ram_ratio>
+    <!-- Defaults are 5 GiB / 8 GiB caps, larger than the whole container. -->
+    <mark_cache_size>268435456</mark_cache_size>
+    <uncompressed_cache_size>134217728</uncompressed_cache_size>
+    <max_concurrent_queries>32</max_concurrent_queries>
+</clickhouse>

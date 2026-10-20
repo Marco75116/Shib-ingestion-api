@@ -12,6 +12,7 @@ configMapGenerator:
   - name: clickhouse-config
     files:
       - config.d/kafka.xml
+      - config.d/memory.xml
   - name: clickhouse-users
     files:
       - users.d/api.xml
