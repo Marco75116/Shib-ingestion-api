@@ -2,6 +2,49 @@
 
 SHIB transfer pipeline: Confluent Kafka → ClickHouse → FastAPI, deployed on a single k3s VM.
 
+## Architecture
+
+```
+Confluent Cloud (topic transfer_shib, 6 partitions, 7-day retention)
+        │  SASL_SSL, outbound only
+        ▼
+ClickHouse 25.3 (StatefulSet, 10 GiB PVC) — 10 tables in schema.sql, main ones shown
+  kafka_transfers (Kafka engine)
+    └─► mv ─► transfers            (ReplacingMergeTree, key block_timestamp+unique_id)
+                ├─► transfers_hourly      (AggregatingMergeTree, key hour)
+                ├─► transfers_by_wallet   (ReplacingMergeTree, key wallet+time; 2 views, sent/received)
+                ├─► wallet_stats          (AggregatingMergeTree, key wallet)
+                ├─► wallet_links          (AggregatingMergeTree, key wallet+counterparty)
+                ├─► transfers_by_amount   (ReplacingMergeTree, key amount+time)
+                └─► funder_wallets        (MergeTree, refreshable view every 10 min from wallet_stats)
+                      └─► funder_stats    (MergeTree, refreshable view, depends on funder_wallets)
+        ▲ read-only user, 10 s / 10k rows / 1 GB per query
+FastAPI (2 pods) ── /transfers, /stats/timeseries, /wallets/{a}/{transfers,stats,links,links/{b},siblings,similar}
+        ▲
+Traefik ◄── Newt tunnel ◄── Pangolin (TLS, domain) ◄── internet
+CronJob transfer-count-alert (hourly, ClickHouse vs SQD portal)
+```
+
+Everything runs on one Debian VM with k3s (`make vm-deploy VM=<ip>`). The host firewall allows only
+ssh inbound; the API and the Headlamp UI are published through a Pangolin tunnel.
+
+## Limits at larger scale
+
+Scale comes with more data and more load. The first step is to monitor every service, find the
+bottleneck, add a scaling solution for it, and put guards in place against malicious or expensive
+users. In practice the bottleneck is most often the database, not the application.
+
+- **Single node.** No replication, no sharding: ClickHouse, its disk and the Kafka consumer are one
+  point of failure. ClickHouse scales by adding nodes: replicas for availability and read load,
+  shards when a single node can no longer hold or scan the data, and more Kafka consumers across
+  those nodes for higher ingestion throughput.
+- **Memory.** 2.5 GiB for ClickHouse caps concurrent analytical queries; the similar-wallets
+  query expands up to 200 neighbours and grows with their degree. On a real node, give ClickHouse
+  memory and move the hub threshold into a precomputed flag.
+- **API protection.** ClickHouse's per-query limits (10 s, 10k rows, 1 GB) protect the database,
+  not the pods. Add rate limiting on the API, and Cloudflare in front of it for bot and DDoS
+  protection.
+
 ## Transfer-count alert job
 
 **Goal.** Prove every hour that ClickHouse holds exactly the SHIB transfers that exist on chain,
