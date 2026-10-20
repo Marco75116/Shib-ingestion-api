@@ -47,6 +47,11 @@ kafka-read: ## print raw topic messages by partition:offset, e.g. make kafka-rea
 	  -v $(CURDIR)/clickhouse/tools:/tools:ro python:3.12-slim \
 	  sh -c 'pip install -q confluent-kafka==2.6.1 2>/dev/null && python /tools/read_offsets.py $(AT)'
 
+kafka-find: ## scan every retained topic message for a text, e.g. make kafka-find Q=0xc938d00a... or Q="2026-10-20 16:47"
+	docker run --rm --env-file k8s/.env -e BROKER=$(KAFKA_BROKER) -e TOPIC=$(KAFKA_TOPIC) \
+	  -v $(CURDIR)/clickhouse/tools:/tools:ro python:3.12-slim \
+	  sh -c 'pip install -q confluent-kafka==2.6.1 2>/dev/null && python /tools/read_offsets.py --find "$(Q)"'
+
 build: ## build the FastAPI image (shared with Docker Desktop Kubernetes)
 	docker build -t shib-api:dev api/
 
