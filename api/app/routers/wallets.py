@@ -2,11 +2,19 @@ from datetime import datetime
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 
-from ..core.constants import MAX_ROWS
+from ..core.constants import HUB_COUNTERPARTIES, MAX_ROWS
 from ..core.db import Database, get_db
-from ..queries.wallets import Direction, query_wallet_stats, query_wallet_transfers
-from ..schemas.wallets import WalletStats, WalletTransfer
-from .deps import valid_address
+from ..queries.wallets import (
+    Direction,
+    LinkOrder,
+    query_common_counterparties,
+    query_direct_link,
+    query_wallet_links,
+    query_wallet_stats,
+    query_wallet_transfers,
+)
+from ..schemas.wallets import WalletLinks, WalletPair, WalletStats, WalletTransfer
+from .deps import valid_address, valid_other
 
 router = APIRouter(prefix="/wallets", tags=["wallets"])
 
@@ -31,4 +39,40 @@ def wallet_stats(address: str = Depends(valid_address), db: Database = Depends(g
         address=address,
         net_flow=stats["received_volume"] - stats["sent_volume"],
         **stats,
+    )
+
+
+@router.get("/{address}/links", response_model=WalletLinks, summary="Direct counterparties of a wallet")
+def wallet_links(
+    address: str = Depends(valid_address),
+    limit: int = Query(20, ge=1, le=200),
+    order: LinkOrder = "volume",
+    db: Database = Depends(get_db),
+):
+    rows = query_wallet_links(db, address, limit, order)
+    return WalletLinks(
+        address=address,
+        links=[{**r, "is_hub": r["counterparty_links"] > HUB_COUNTERPARTIES} for r in rows],
+    )
+
+
+@router.get("/{address}/links/{other}", response_model=WalletPair, summary="Link between two wallets")
+def wallet_pair(
+    address: str = Depends(valid_address),
+    other: str = Depends(valid_other),
+    limit: int = Query(20, ge=1, le=200),
+    db: Database = Depends(get_db),
+):
+    direct = query_direct_link(db, address, other)
+    has_direct = bool(direct) and (direct["sent_count"] + direct["received_count"]) > 0
+    common = [
+        {**r, "is_hub": r["counterparty_links"] > HUB_COUNTERPARTIES}
+        for r in query_common_counterparties(db, address, other, limit)
+    ]
+    return WalletPair(
+        address=address,
+        other=other,
+        degree=1 if has_direct else (2 if common else None),
+        direct=direct if has_direct else None,
+        common_counterparties=common,
     )

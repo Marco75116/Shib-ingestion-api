@@ -4,7 +4,7 @@ from typing import Literal
 from ..core.constants import MAX_ROWS
 from ..core.db import Database
 
-Direction = Literal["all", "in", "out"]
+Direction = Literal["all", "sent", "received"]
 
 
 def query_wallet_transfers(
@@ -47,4 +47,100 @@ def query_wallet_stats(db: Database, wallet: str) -> dict:
         WHERE wallet = {wallet:String}
         """,
         {"wallet": wallet},
+    )
+
+
+
+
+LinkOrder = Literal["volume", "transfers", "last_seen"]
+LINK_ORDER = {"volume": "volume DESC", "transfers": "transfers DESC", "last_seen": "last_seen DESC"}
+
+
+def _neighbors(param: str) -> str:
+    """Counterparties of the wallet bound to `param`: one primary-key range read on wallet_links."""
+    return f"""
+        SELECT
+            counterparty,
+            sum(sent_count)               AS sent_count,
+            sum(sent_volume)              AS sent_volume,
+            sum(received_count)           AS received_count,
+            sum(received_volume)          AS received_volume,
+            sent_count + received_count   AS transfers,
+            sent_volume + received_volume AS volume,
+            min(first_seen)               AS first_seen,
+            max(last_seen)                AS last_seen
+        FROM wallet_links
+        WHERE wallet = {{{param}:String}}
+        GROUP BY counterparty
+    """
+
+
+def query_wallet_links(db: Database, wallet: str, limit: int, order: LinkOrder) -> list[dict]:
+    return db.query(
+        f"""
+        WITH links AS
+        (
+            {_neighbors("wallet")}
+            ORDER BY {LINK_ORDER[order]}
+            LIMIT {{limit:UInt32}}
+        )
+        SELECT links.*, ifNull(stats.counterparties, 0) AS counterparty_links
+        FROM links
+        LEFT JOIN
+        (
+            SELECT wallet, uniqMerge(counterparties) AS counterparties
+            FROM wallet_stats
+            WHERE wallet IN (SELECT counterparty FROM links)
+            GROUP BY wallet
+        ) AS stats ON stats.wallet = links.counterparty
+        ORDER BY {LINK_ORDER[order]}
+        """,
+        {"wallet": wallet, "limit": min(limit, MAX_ROWS)},
+    )
+
+
+def query_direct_link(db: Database, address: str, other: str) -> dict:
+    return db.one(
+        """
+        SELECT
+            sum(sent_count)      AS sent_count,
+            sum(sent_volume)     AS sent_volume,
+            sum(received_count)  AS received_count,
+            sum(received_volume) AS received_volume,
+            min(first_seen)      AS first_seen,
+            max(last_seen)       AS last_seen
+        FROM wallet_links
+        WHERE wallet = {address:String} AND counterparty = {other:String}
+        """,
+        {"address": address, "other": other},
+    )
+
+
+def query_common_counterparties(db: Database, address: str, other: str, limit: int) -> list[dict]:
+    return db.query(
+        f"""
+        WITH
+            la AS ({_neighbors("address")}),
+            lb AS ({_neighbors("other")})
+        SELECT
+            la.counterparty                 AS counterparty,
+            la.transfers                    AS transfers_with_address,
+            la.volume                       AS volume_with_address,
+            lb.transfers                    AS transfers_with_other,
+            lb.volume                       AS volume_with_other,
+            ifNull(stats.counterparties, 0) AS counterparty_links
+        FROM la
+        INNER JOIN lb ON la.counterparty = lb.counterparty
+        LEFT JOIN
+        (
+            SELECT wallet, uniqMerge(counterparties) AS counterparties
+            FROM wallet_stats
+            WHERE wallet IN (SELECT counterparty FROM la)
+            GROUP BY wallet
+        ) AS stats ON stats.wallet = la.counterparty
+        WHERE la.counterparty NOT IN ({{address:String}}, {{other:String}})
+        ORDER BY volume_with_address + volume_with_other DESC
+        LIMIT {{limit:UInt32}}
+        """,
+        {"address": address, "other": other, "limit": min(limit, MAX_ROWS)},
     )

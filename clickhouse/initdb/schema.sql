@@ -108,7 +108,7 @@ GROUP BY hour;
 CREATE TABLE IF NOT EXISTS shib.transfers_by_wallet
 (
     wallet          String,
-    direction       Enum8('out' = 1, 'in' = 2),
+    direction       Enum8('sent' = 1, 'received' = 2),
     block_timestamp DateTime64(3, 'UTC'),
     unique_id       String,
     tx_hash         String,
@@ -119,16 +119,16 @@ ENGINE = ReplacingMergeTree
 PARTITION BY toYYYYMM(block_timestamp)
 ORDER BY (wallet, block_timestamp, unique_id, direction);
 
-CREATE MATERIALIZED VIEW IF NOT EXISTS shib.mv_transfers_by_wallet_out
+CREATE MATERIALIZED VIEW IF NOT EXISTS shib.mv_transfers_by_wallet_sent
 TO shib.transfers_by_wallet
 AS
-SELECT from_address AS wallet, 'out' AS direction, block_timestamp, unique_id, tx_hash, to_address AS counterparty, amount
+SELECT from_address AS wallet, 'sent' AS direction, block_timestamp, unique_id, tx_hash, to_address AS counterparty, amount
 FROM shib.transfers;
 
-CREATE MATERIALIZED VIEW IF NOT EXISTS shib.mv_transfers_by_wallet_in
+CREATE MATERIALIZED VIEW IF NOT EXISTS shib.mv_transfers_by_wallet_received
 TO shib.transfers_by_wallet
 AS
-SELECT to_address AS wallet, 'in' AS direction, block_timestamp, unique_id, tx_hash, from_address AS counterparty, amount
+SELECT to_address AS wallet, 'received' AS direction, block_timestamp, unique_id, tx_hash, from_address AS counterparty, amount
 FROM shib.transfers;
 
 CREATE TABLE IF NOT EXISTS shib.wallet_stats
@@ -150,12 +150,41 @@ TO shib.wallet_stats
 AS
 SELECT
     wallet,
-    countIf(direction = 'out')       AS sent_count,
-    sumIf(amount, direction = 'out') AS sent_volume,
-    countIf(direction = 'in')        AS received_count,
-    sumIf(amount, direction = 'in')  AS received_volume,
+    countIf(direction = 'sent')          AS sent_count,
+    sumIf(amount, direction = 'sent')    AS sent_volume,
+    countIf(direction = 'received')      AS received_count,
+    sumIf(amount, direction = 'received') AS received_volume,
     uniqState(counterparty)          AS counterparties,
     min(block_timestamp)             AS first_seen,
     max(block_timestamp)             AS last_seen
 FROM shib.transfers_by_wallet
 GROUP BY wallet;
+
+CREATE TABLE IF NOT EXISTS shib.wallet_links
+(
+    wallet          String,
+    counterparty    String,
+    sent_count      SimpleAggregateFunction(sum, UInt64),
+    sent_volume     SimpleAggregateFunction(sum, Float64),
+    received_count  SimpleAggregateFunction(sum, UInt64),
+    received_volume SimpleAggregateFunction(sum, Float64),
+    first_seen      SimpleAggregateFunction(min, DateTime64(3, 'UTC')),
+    last_seen       SimpleAggregateFunction(max, DateTime64(3, 'UTC'))
+)
+ENGINE = AggregatingMergeTree
+ORDER BY (wallet, counterparty);
+
+CREATE MATERIALIZED VIEW IF NOT EXISTS shib.mv_wallet_links
+TO shib.wallet_links
+AS
+SELECT
+    wallet,
+    counterparty,
+    countIf(direction = 'sent')           AS sent_count,
+    sumIf(amount, direction = 'sent')     AS sent_volume,
+    countIf(direction = 'received')       AS received_count,
+    sumIf(amount, direction = 'received') AS received_volume,
+    min(block_timestamp)                  AS first_seen,
+    max(block_timestamp)                  AS last_seen
+FROM shib.transfers_by_wallet
+GROUP BY wallet, counterparty;
