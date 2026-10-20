@@ -104,3 +104,4 @@ def wallet_siblings(
         seeded_wallets=query_funder_stats(db, funder).get("seeded_wallets", 0),
         siblings=[{**r, "is_hub": r["counterparties"] > HUB_COUNTERPARTIES} for r in rows],
     )
+

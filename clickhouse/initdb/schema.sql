@@ -232,3 +232,22 @@ AS
 SELECT funder, count() AS seeded_wallets, min(first_received_at) AS first_seeded, max(first_received_at) AS last_seeded
 FROM shib.funder_wallets
 GROUP BY funder;
+
+CREATE TABLE IF NOT EXISTS shib.transfers_by_amount
+(
+    amount          Float64,
+    block_timestamp DateTime64(3, 'UTC'),
+    unique_id       String,
+    tx_hash         String,
+    from_address    String,
+    to_address      String
+)
+ENGINE = ReplacingMergeTree
+PARTITION BY toYYYYMM(block_timestamp)
+ORDER BY (amount, block_timestamp, unique_id);
+
+CREATE MATERIALIZED VIEW IF NOT EXISTS shib.mv_transfers_by_amount
+TO shib.transfers_by_amount
+AS
+SELECT amount, block_timestamp, unique_id, tx_hash, from_address, to_address
+FROM shib.transfers;
