@@ -43,8 +43,14 @@ rsync -az --delete \
   "${ROOT}/" "${HOST}:${REMOTE_DIR}/"
 rsync -az /tmp/shib-api.tar "${HOST}:/tmp/shib-api.tar"
 
-echo "==> bootstrap (no-op if already done)"
-ssh "${HOST}" "bash ${REMOTE_DIR}/deploy/vm/bootstrap.sh"
+# With Pangolin/Newt publishing the API, nothing but ssh needs to be reachable on the VM.
+if grep -qE '^NEWT_ID=.+' "${ROOT}/k8s/.env" && ! grep -qE '^NEWT_ID=changeme' "${ROOT}/k8s/.env"; then
+  PUBLIC_PORTS="22"
+else
+  PUBLIC_PORTS="22, 80, 443"
+fi
+echo "==> bootstrap (no-op if already done; public ports: ${PUBLIC_PORTS})"
+ssh "${HOST}" "PUBLIC_PORTS='${PUBLIC_PORTS}' bash ${REMOTE_DIR}/deploy/vm/bootstrap.sh"
 
 echo "==> importing image + applying manifests (kafka group suffix: ${KAFKA_GROUP_SUFFIX})"
 ssh "${HOST}" bash <<REMOTE

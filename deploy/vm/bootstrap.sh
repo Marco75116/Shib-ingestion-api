@@ -1,7 +1,11 @@
 #!/usr/bin/env bash
 # Runs ON the VM (Ubuntu 22.04/24.04 or Debian 12/13, x86_64 or aarch64). Idempotent.
+# - installs a host firewall (nftables): only PUBLIC_PORTS inbound, cluster traffic allowed
 # - installs k3s (with its bundled Traefik ingress, which owns ports 80/443 on the node)
 set -euo pipefail
+
+# comma-separated tcp ports open to the internet. deploy.sh passes "22" when Newt/Pangolin is used.
+PUBLIC_PORTS="${PUBLIC_PORTS:-22, 80, 443}"
 
 # Debian minimal images have no sudo; as root just run commands directly
 if ! command -v sudo >/dev/null 2>&1; then
@@ -15,6 +19,15 @@ fi
 echo "==> base packages"
 if ! command -v curl >/dev/null 2>&1 || ! command -v rsync >/dev/null 2>&1; then
   sudo apt-get update -qq && sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq curl rsync ca-certificates >/dev/null
+fi
+
+echo "==> firewall (nftables): inbound tcp ${PUBLIC_PORTS} only"
+if command -v nft >/dev/null 2>&1; then
+  sed "s/__PUBLIC_PORTS__/${PUBLIC_PORTS}/" "$(dirname "$0")/nftables.conf" | sudo tee /etc/nftables.conf >/dev/null
+  sudo nft -f /etc/nftables.conf
+  sudo systemctl enable nftables >/dev/null 2>&1 || true
+else
+  echo "    nft not found; install the nftables package. Skipping firewall."
 fi
 
 K3S_EXEC="--write-kubeconfig-mode 644"
