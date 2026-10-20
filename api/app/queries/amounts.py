@@ -20,7 +20,7 @@ def query_transfers_by_amount(db: Database, amount: float, tolerance: float, hou
     where = f"{predicate} AND block_timestamp >= now() - INTERVAL {{hours:UInt32}} HOUR"
     stats = db.one(
         f"""
-        SELECT count() AS frequency, uniq(from_address) AS senders, uniq(to_address) AS receivers
+        SELECT count() AS frequency, uniqExact(from_address) AS senders, uniqExact(to_address) AS receivers
         FROM transfers_by_amount
         WHERE {where}
         """,

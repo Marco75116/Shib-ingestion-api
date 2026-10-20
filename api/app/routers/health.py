@@ -12,6 +12,17 @@ def live():
     return {"status": "ok"}
 
 
+@router.get("/ready", include_in_schema=False)
+def ready(response: Response, db: Database = Depends(get_db)):
+    """Readiness probe: ClickHouse answers. Cheap on purpose; /health carries the ingestion detail."""
+    try:
+        db.client.command("SELECT 1")
+    except Exception as exc:
+        response.status_code = 503
+        return {"status": "degraded", "clickhouse": f"{type(exc).__name__}: {exc}"[:200]}
+    return {"status": "ok"}
+
+
 @router.get("/health", response_model=Health)
 def health(response: Response, db: Database = Depends(get_db)):
     try:

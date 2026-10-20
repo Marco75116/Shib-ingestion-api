@@ -14,7 +14,7 @@ router = APIRouter(prefix="/transfers", tags=["transfers"])
 @router.get("/latest", response_model=list[Transfer])
 def latest(
     limit: int = Query(20, ge=1, le=MAX_ROWS),
-    since: datetime | None = Query(None, description="only transfers after this UTC datetime"),
+    since: datetime | None = Query(None, description="only transfers after this UTC datetime (default: last 7 days)"),
     db: Database = Depends(get_db),
 ):
     return query_latest_transfers(db, limit, since)

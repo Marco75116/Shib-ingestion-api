@@ -35,7 +35,7 @@ spec:
               value: shib
           readinessProbe:
             httpGet:
-              path: /health
+              path: /ready
               port: http
             initialDelaySeconds: 3
             periodSeconds: 10

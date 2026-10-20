@@ -244,7 +244,7 @@ def query_similar_wallets(db: Database, address: str, min_shared: int, limit: in
             ),
             candidates AS
             (
-                SELECT counterparty AS wallet, uniq(neighbor) AS shared_counterparties
+                SELECT counterparty AS wallet, uniqExact(neighbor) AS shared_counterparties
                 FROM
                 (
                     SELECT wallet AS neighbor, counterparty
