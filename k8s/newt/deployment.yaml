@@ -1,0 +1,48 @@
+# Pangolin site connector. Opens an outbound WireGuard tunnel to your Pangolin server so the API
+# can be published as a Pangolin resource (domain + TLS + optional auth) with no inbound port on
+# the VM. Applied by deploy/vm/deploy.sh only when NEWT_ID is set in k8s/.env.
+# Resource target in Pangolin: http  api.bubblemaps-test.svc.cluster.local  port 80
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: newt
+  labels:
+    app: newt
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate   # one tunnel per site credential
+  selector:
+    matchLabels:
+      app: newt
+  template:
+    metadata:
+      labels:
+        app: newt
+    spec:
+      containers:
+        - name: newt
+          image: fosrl/newt:1.18.1
+          env:
+            - name: PANGOLIN_ENDPOINT
+              valueFrom:
+                secretKeyRef:
+                  name: app-secrets
+                  key: PANGOLIN_ENDPOINT
+            - name: NEWT_ID
+              valueFrom:
+                secretKeyRef:
+                  name: app-secrets
+                  key: NEWT_ID
+            - name: NEWT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: app-secrets
+                  key: NEWT_SECRET
+          resources:
+            requests:
+              cpu: 10m
+              memory: 32Mi
+            limits:
+              cpu: 200m
+              memory: 128Mi

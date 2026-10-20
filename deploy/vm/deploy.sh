@@ -6,6 +6,10 @@
 #
 # Works on any Ubuntu 22.04/24.04 or Debian 12/13 VM (Hetzner, OVH, Scaleway, DigitalOcean, Oracle, ...).
 # Requires: docker (buildx), rsync, ssh access to the VM, k8s/.env filled in.
+#
+# Pangolin (optional): set PANGOLIN_ENDPOINT / NEWT_ID / NEWT_SECRET in k8s/.env
+# (from Pangolin -> Sites -> Add Site) and the deploy runs the Newt connector in the cluster. Then
+# add a Resource in Pangolin targeting http api.bubblemaps-test.svc.cluster.local:80.
 set -euo pipefail
 
 VM="${1:?usage: deploy.sh <vm-ip> [ssh-user]}"
@@ -55,6 +59,12 @@ sudo k3s kubectl -n ${NS} rollout status statefulset/clickhouse --timeout=300s
 sudo k3s kubectl -n ${NS} exec -i clickhouse-0 -- sh -c 'clickhouse-client --password "\$CLICKHOUSE_PASSWORD" --multiquery' < clickhouse/initdb/schema.sql
 sudo k3s kubectl -n ${NS} rollout restart deployment/api
 sudo k3s kubectl -n ${NS} rollout status deployment/api --timeout=180s
+if grep -qE '^NEWT_ID=.+' k8s/.env && ! grep -qE '^NEWT_ID=changeme' k8s/.env; then
+  echo "newt (Pangolin connector) enabled"
+  sudo k3s kubectl apply -k k8s/newt/
+  sudo k3s kubectl -n ${NS} rollout status deployment/newt --timeout=120s
+  sudo k3s kubectl -n ${NS} logs deployment/newt --tail=5
+fi
 sudo k3s kubectl -n ${NS} get pods,svc,ingress,pvc
 REMOTE
 
