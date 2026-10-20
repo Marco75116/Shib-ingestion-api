@@ -50,3 +50,6 @@ restart-api: ## roll the API pods (pick up a freshly built image)
 
 pf-api: ## port-forward the API to http://localhost:8080 (docs at /docs)
 	kubectl -n $(NS) port-forward svc/api 8080:80
+
+refresh-views: ## force the scheduled (refreshable) views to recompute now
+	kubectl -n $(NS) exec clickhouse-0 -- sh -c 'clickhouse-client --password "$$CLICKHOUSE_PASSWORD" --multiquery -q "SYSTEM REFRESH VIEW shib.mv_funder_wallets; SYSTEM WAIT VIEW shib.mv_funder_wallets; SYSTEM REFRESH VIEW shib.mv_funder_stats; SYSTEM WAIT VIEW shib.mv_funder_stats; SELECT view, status, last_success_time, next_refresh_time, exception FROM system.view_refreshes FORMAT PrettyCompact"'

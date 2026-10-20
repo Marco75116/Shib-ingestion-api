@@ -52,36 +52,43 @@ def query_wallet_stats(db: Database, wallet: str) -> dict:
     )
 
 
-def query_wallet_siblings(db: Database, funder: str, exclude: str, limit: int) -> list[dict]:
-    """Wallets whose first SHIB came from `funder`: candidates = funder's recipients, confirmed in wallet_stats."""
-    return db.query(
-        """
-        SELECT
-            wallet,
-            min(first_received_at)    AS first_received_at,
-            sum(received_count)       AS received_count,
-            sum(received_volume)      AS received_volume,
-            uniqMerge(counterparties) AS counterparties
-        FROM wallet_stats
-        WHERE wallet IN
-        (
-            SELECT counterparty
-            FROM wallet_links
-            WHERE wallet = {funder:String}
-            GROUP BY counterparty
-            HAVING sum(sent_count) > 0
-        )
-          AND wallet != {exclude:String}
-        GROUP BY wallet
-        HAVING argMinMerge(first_funder) = {funder:String}
-        ORDER BY first_received_at
-        LIMIT {limit:UInt32}
-        """,
-        {"funder": funder, "exclude": exclude, "limit": min(limit, MAX_ROWS)},
+def query_funder_stats(db: Database, funder: str) -> dict:
+    return db.one(
+        "SELECT seeded_wallets, first_seeded, last_seeded FROM funder_stats WHERE funder = {funder:String}",
+        {"funder": funder},
     )
 
 
-
+def query_wallet_siblings(db: Database, funder: str, exclude: str, limit: int) -> list[dict]:
+    return db.query(
+        """
+        WITH sib AS
+        (
+            SELECT wallet, first_received_at
+            FROM funder_wallets
+            WHERE funder = {funder:String} AND wallet != {exclude:String}
+            ORDER BY first_received_at
+            LIMIT {limit:UInt32}
+        )
+        SELECT
+            sib.wallet                      AS wallet,
+            sib.first_received_at           AS first_received_at,
+            ifNull(s.received_count, 0)     AS received_count,
+            ifNull(s.received_volume, 0)    AS received_volume,
+            ifNull(s.counterparties, 0)     AS counterparties
+        FROM sib
+        LEFT JOIN
+        (
+            SELECT wallet, sum(received_count) AS received_count, sum(received_volume) AS received_volume,
+                   uniqMerge(counterparties) AS counterparties
+            FROM wallet_stats
+            WHERE wallet IN (SELECT wallet FROM sib)
+            GROUP BY wallet
+        ) AS s ON s.wallet = sib.wallet
+        ORDER BY first_received_at
+        """,
+        {"funder": funder, "exclude": exclude, "limit": min(limit, MAX_ROWS)},
+    )
 
 LinkOrder = Literal["volume", "transfers", "last_seen"]
 LINK_ORDER = {"volume": "volume DESC", "transfers": "transfers DESC", "last_seen": "last_seen DESC"}

@@ -192,3 +192,43 @@ SELECT
     max(block_timestamp)                  AS last_seen
 FROM shib.transfers_by_wallet
 GROUP BY wallet, counterparty;
+
+CREATE TABLE IF NOT EXISTS shib.funder_wallets
+(
+    funder            String,
+    wallet            String,
+    first_received_at DateTime64(3, 'UTC')
+)
+ENGINE = MergeTree
+ORDER BY (funder, first_received_at);
+
+CREATE MATERIALIZED VIEW IF NOT EXISTS shib.mv_funder_wallets
+REFRESH EVERY 10 MINUTE
+TO shib.funder_wallets
+AS
+SELECT funder, wallet, first_received_at
+FROM
+(
+    SELECT wallet, argMinMerge(first_funder) AS funder, min(first_received_at) AS first_received_at
+    FROM shib.wallet_stats
+    GROUP BY wallet
+)
+WHERE funder != '';
+
+CREATE TABLE IF NOT EXISTS shib.funder_stats
+(
+    funder         String,
+    seeded_wallets UInt64,
+    first_seeded   DateTime64(3, 'UTC'),
+    last_seeded    DateTime64(3, 'UTC')
+)
+ENGINE = MergeTree
+ORDER BY funder;
+
+CREATE MATERIALIZED VIEW IF NOT EXISTS shib.mv_funder_stats
+REFRESH EVERY 10 MINUTE DEPENDS ON shib.mv_funder_wallets
+TO shib.funder_stats
+AS
+SELECT funder, count() AS seeded_wallets, min(first_received_at) AS first_seeded, max(first_received_at) AS last_seeded
+FROM shib.funder_wallets
+GROUP BY funder;

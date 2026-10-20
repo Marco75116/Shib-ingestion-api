@@ -9,6 +9,7 @@ from ..queries.wallets import (
     LinkOrder,
     query_common_counterparties,
     query_direct_link,
+    query_funder_stats,
     query_wallet_links,
     query_wallet_siblings,
     query_wallet_stats,
@@ -39,6 +40,7 @@ def wallet_stats(address: str = Depends(valid_address), db: Database = Depends(g
     return WalletStats(
         address=address,
         net_flow=stats["received_volume"] - stats["sent_volume"],
+        seeded_wallets=query_funder_stats(db, address).get("seeded_wallets", 0),
         **stats,
     )
 
@@ -91,14 +93,14 @@ def wallet_siblings(
     funder = stats["first_funder"]
     if funder is None:
         return WalletSiblings(address=address, first_funder=None, first_received_at=None,
-                              funder_is_hub=False, siblings=[])
-    funder_stats = query_wallet_stats(db, funder)
-    funder_is_hub = funder_stats.get("counterparties", 0) > HUB_COUNTERPARTIES
+                              funder_is_hub=False, seeded_wallets=0, siblings=[])
+    funder_is_hub = query_wallet_stats(db, funder).get("counterparties", 0) > HUB_COUNTERPARTIES
     rows = [] if funder_is_hub else query_wallet_siblings(db, funder, address, limit)
     return WalletSiblings(
         address=address,
         first_funder=funder,
         first_received_at=stats["first_received_at"],
         funder_is_hub=funder_is_hub,
+        seeded_wallets=query_funder_stats(db, funder).get("seeded_wallets", 0),
         siblings=[{**r, "is_hub": r["counterparties"] > HUB_COUNTERPARTIES} for r in rows],
     )

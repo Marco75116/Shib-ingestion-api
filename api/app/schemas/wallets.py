@@ -25,6 +25,7 @@ class WalletStats(BaseModel):
     last_seen: datetime
     first_funder: str | None = Field(description="first wallet that ever sent SHIB to this address")
     first_received_at: datetime | None
+    seeded_wallets: int = Field(description="wallets whose first SHIB came from this address (refreshed every 10 min)")
 
 
 class WalletLink(BaseModel):
@@ -86,4 +87,5 @@ class WalletSiblings(BaseModel):
     first_funder: str | None
     first_received_at: datetime | None
     funder_is_hub: bool = Field(description="funder is an exchange-like wallet; siblings are not meaningful")
+    seeded_wallets: int = Field(description="total wallets seeded by first_funder, including this one")
     siblings: list[Sibling] = Field(description="other wallets whose first SHIB also came from first_funder")
