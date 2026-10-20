@@ -73,6 +73,9 @@ sudo k3s kubectl -n ${NS} rollout status statefulset/clickhouse --timeout=300s
 sudo k3s kubectl -n ${NS} exec -i clickhouse-0 -- sh -c 'clickhouse-client --password "\$CLICKHOUSE_PASSWORD" --multiquery' < clickhouse/initdb/schema.sql
 sudo k3s kubectl -n ${NS} rollout restart deployment/api
 sudo k3s kubectl -n ${NS} rollout status deployment/api --timeout=180s
+# Headlamp (k8s web UI), reachable only through Pangolin; token via: make vm-headlamp-token
+sudo k3s kubectl apply -k k8s/headlamp/
+sudo k3s kubectl -n headlamp rollout status deployment/headlamp --timeout=120s
 if grep -qE '^NEWT_ID=.+' k8s/.env && ! grep -qE '^NEWT_ID=changeme' k8s/.env; then
   echo "newt (Pangolin connector) enabled"
   sudo k3s kubectl apply -k k8s/newt/

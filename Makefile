@@ -80,5 +80,8 @@ vm-logs: ## tail a pod on the VM: make vm-logs VM=<ip> POD=clickhouse-0
 vm-delete: ## remove the app from the VM (keeps k3s and the data PVC): make vm-delete VM=<ip>
 	ssh $(or $(SSH_USER),root)@$(VM) 'cd ~/bubblemaps-test && sudo k3s kubectl delete -k k8s/ --ignore-not-found'
 
+vm-headlamp-token: ## print a 1-year login token for the Headlamp UI: make vm-headlamp-token VM=<ip>
+	@ssh $(or $(SSH_USER),root)@$(VM) 'sudo k3s kubectl -n headlamp create token headlamp-admin --duration=8760h'
+
 vm-wipe: ## uninstall k3s and all data on the VM, leaving a blank server: make vm-wipe VM=<ip>
 	ssh $(or $(SSH_USER),root)@$(VM) 'sudo /usr/local/bin/k3s-uninstall.sh && rm -rf ~/bubblemaps-test /tmp/shib-api.tar'
