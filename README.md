@@ -30,6 +30,10 @@ ssh inbound; the API and the Headlamp UI are published through a Pangolin tunnel
 
 ## Infrastructure
 
+> **Note:** the netcup server was shut down on 2026-10-25, after the review. The URLs below
+> (shib-api.marco33.fr, k8s.marco33.fr) are no longer reachable. Everything can be redeployed
+> on any Debian/Ubuntu VM with `make vm-deploy VM=<ip>`.
+
 The whole stack runs on one netcup VPS (2 vCore, 4 GB, Debian 13) with a single-node k3s cluster,
 deployed with `make vm-deploy VM=<ip>` from the working tree. The host firewall allows only ssh
 inbound; the API and the Headlamp UI are published through a Pangolin tunnel (the `newt` pod), so
