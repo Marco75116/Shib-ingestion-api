@@ -117,7 +117,7 @@ CREATE TABLE IF NOT EXISTS shib.transfers_by_wallet
 )
 ENGINE = ReplacingMergeTree
 PARTITION BY toYYYYMM(block_timestamp)
-ORDER BY (wallet, block_timestamp, unique_id, direction);
+ORDER BY (wallet, block_timestamp, direction, unique_id);
 
 CREATE MATERIALIZED VIEW IF NOT EXISTS shib.mv_transfers_by_wallet_sent
 TO shib.transfers_by_wallet
